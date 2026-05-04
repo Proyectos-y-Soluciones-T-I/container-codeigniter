@@ -57,7 +57,11 @@ cd container-codeigniter
 
 ### 3. Crear el archivo de variables de entorno
 
-Crear `.env` en la raíz con este contenido:
+Copiar `.env.example` a `.env` en la raíz y ajustar los valores:
+
+```bash
+cp .env.example .env
+```
 
 > Los valores de abajo son **ejemplos** — cambiálos por tus propias credenciales. El archivo está en `.gitignore` — nunca se sube al repo.
 
@@ -229,6 +233,8 @@ docker exec -it db-ci mysql -u root -p
 
 ### Composer por proyecto
 
+El servicio de Composer ya no corre como daemon. Se usa con `docker-compose run`:
+
 ```bash
 # Instalar dependencias
 docker-compose run --rm composer install --working-dir=/app/mi-proyecto
@@ -239,6 +245,8 @@ docker-compose run --rm composer require vendor/paquete --working-dir=/app/mi-pr
 # Actualizar dependencias
 docker-compose run --rm composer update --working-dir=/app/mi-proyecto
 ```
+
+> El flag `--rm` elimina el contenedor después de usarlo para no acumular contenedores detenidos.
 
 ---
 
@@ -260,6 +268,58 @@ docker-compose run --rm composer update --working-dir=/app/mi-proyecto
 
 - `session.save_path=/tmp` — las sesiones se guardan dentro del contenedor.
 - Si necesitás persistir sesiones entre reinicios, montá un volumen para `/tmp`.
+
+### Healthchecks
+
+Todos los servicios tienen healthchecks configurados:
+- **Nginx**: verifica que el servidor responda en puerto 80
+- **PHP-FPM**: verifica que el proceso php-fpm esté saludable
+- **MariaDB**: verifica que el servidor acepte conexiones
+- **phpMyAdmin**: depende de que MariaDB esté healthy antes de arrancar
+
+Esto evita errores 502 al iniciar el stack. El `depends_on` ahora usa `condition: service_healthy`.
+
+### Logging con rotación
+
+Todos los servicios tienen logging configurado con rotación automática:
+- Tamaño máximo por archivo: `10MB`
+- Archivos retenidos: `3`
+- Esto previene que los logs llenen el disco.
+
+### Optimización de volúmenes
+
+Los bind mounts usan el flag `:cached` para mejorar performance en Windows/Mac:
+```yaml
+volumes:
+  - ./src:/var/www/html:cached
+```
+
+### Seguridad
+
+**Nginx**:
+- Security headers: `X-Frame-Options`, `X-Content-Type-Options`, `X-XSS-Protection`, `Referrer-Policy`
+- Caché de assets estáticos (CSS, JS, imágenes) por 30 días
+- Bloqueo de acceso a archivos ocultos (`.env`, `.git`, etc.)
+- Bloqueo explícito de `composer.json`, `composer.lock`, `package.json`
+
+**PHP**:
+- `expose_php=Off` — no expone versión de PHP en headers
+- `display_errors=Off` — errores no se muestran en producción (solo logs)
+- `log_errors=On` — errores van a stderr (capturados por Docker logs)
+- Cookies de sesión con `httponly=1` y `use_strict_mode=1`
+
+**MariaDB**:
+- `my.cnf` montado como read-only (`:ro`)
+- Variables de entorno para credenciales (nunca hardcodeadas)
+
+### Nginx: caché de assets estáticos
+
+Archivos CSS, JS, imágenes y fuentes se cachean por 30 días con `Cache-Control: public, immutable`. Esto mejora significativamente la velocidad de carga después de la primera visita.
+
+Para forzar recarga de assets después de un deploy, agregar query string:
+```html
+<link rel="stylesheet" href="/miapp/css/style.css?v=2">
+```
 
 ---
 

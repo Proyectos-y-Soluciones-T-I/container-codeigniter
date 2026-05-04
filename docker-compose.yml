@@ -7,13 +7,26 @@ services:
     ports:
       - 8888:80
     volumes:
-      - ./src:/var/www/html
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - ./src:/var/www/html:cached
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
-      - php
-      - db
+      php:
+        condition: service_healthy
+      db:
+        condition: service_healthy
     networks:
       - ci-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   db:
     container_name: db-ci
@@ -35,9 +48,20 @@ services:
       - 3307:3306
     volumes:
       - ./mysql:/var/lib/mysql
-      - ./my.cnf:/etc/mysql/conf.d/my.cnf
+      - ./my.cnf:/etc/mysql/conf.d/my.cnf:ro
     networks:
       - ci-network
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin --no-defaults ping -h 127.0.0.1 -u root -p\"${MYSQL_ROOT_PASSWORD}\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   php:
     build:
@@ -46,18 +70,20 @@ services:
     container_name: php-ci
     restart: always
     volumes:
-      - ./src:/var/www/html
+      - ./src:/var/www/html:cached
     networks:
       - ci-network
-
-  composer:
-    image: composer:2.8
-    container_name: composer
-    volumes:
-      - ./src:/app
-    working_dir: /app
-    networks:
-      - ci-network
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep '[p]hp-fpm' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   phpmyadmin:
     container_name: phpmyadmin-ci
@@ -70,10 +96,18 @@ services:
     environment:
       PMA_HOST: db
       PMA_PORT: 3306
+      PMA_ABSOLUTE_URI: http://localhost:8081/
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     networks:
       - ci-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 networks:
   ci-network:
+    driver: bridge
