@@ -85,15 +85,19 @@ function findLogo(string $projectPath): ?string
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Proyectos - Dashboard</title>
 <style>
-/* === Design Tokens (Slate Dark Palette) === */
+/* === Design Tokens (Clean Light Palette) === */
 :root {
-    --bg:         #0f1729;
-    --card-bg:    #1e293b;
-    --border:     #334155;
-    --accent:     #3b82f6;
-    --text:       #e2e8f0;
-    --text-muted: #94a3b8;
-    --radius:     12px;
+    --bg:         #f8f9fa;
+    --card-bg:    #ffffff;
+    --border:     #e2e8f0;
+    --accent:     #4f8ef7;
+    --accent-hover:#3b7de6;
+    --text:       #1e293b;
+    --text-muted: #64748b;
+    --logo-area:  #f1f5f9;
+    --shadow:     0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+    --shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.08);
+    --radius:     10px;
 }
 
 /* === Reset === */
@@ -112,21 +116,65 @@ body {
     padding: 2rem;
 }
 
-/* === Header === */
-header {
+/* === Header Bar === */
+.header-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
     margin-bottom: 2rem;
 }
 
-header h1 {
-    font-size: 1.5rem;
+.header-bar h1 {
+    font-size: 1.4rem;
     font-weight: 700;
     letter-spacing: -0.02em;
+    color: var(--text);
 }
 
-header p {
+.header-bar p {
     color: var(--text-muted);
-    margin-top: 0.25rem;
-    font-size: 0.95rem;
+    margin-top: 0.15rem;
+    font-size: 0.9rem;
+}
+
+.header-actions {
+    display: flex;
+    gap: 0.6rem;
+}
+
+/* === Tool Buttons === */
+.tool-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 1rem;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    white-space: nowrap;
+}
+
+.tool-btn:hover {
+    background: #eef2ff;
+    border-color: var(--accent);
+    box-shadow: 0 1px 3px rgba(79, 142, 247, 0.15);
+}
+
+.tool-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.tool-btn-icon {
+    font-size: 1.1rem;
+    line-height: 1;
 }
 
 /* === Card Grid === */
@@ -142,12 +190,13 @@ header p {
     border: 1px solid var(--border);
     border-radius: var(--radius);
     overflow: hidden;
+    box-shadow: var(--shadow);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-hover);
 }
 
 /* Logo area */
@@ -157,7 +206,7 @@ header p {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--bg);
+    background: var(--logo-area);
     padding: 1rem;
 }
 
@@ -167,14 +216,14 @@ header p {
     object-fit: contain;
 }
 
-/* Fallback letter when no logo.png exists */
+/* Fallback letter when no logo found */
 .logo-fallback {
-    width: 64px;
-    height: 64px;
+    width: 56px;
+    height: 56px;
     border-radius: 8px;
     background: var(--accent);
     color: #ffffff;
-    font-size: 1.5rem;
+    font-size: 1.4rem;
     font-weight: 700;
     display: flex;
     align-items: center;
@@ -188,32 +237,33 @@ header p {
 }
 
 .card-body h2 {
-    font-size: 1.05rem;
+    font-size: 1rem;
     font-weight: 600;
-    margin-bottom: 0.35rem;
+    margin-bottom: 0.3rem;
     line-height: 1.3;
+    color: var(--text);
 }
 
 .card-body .date {
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     color: var(--text-muted);
     margin-bottom: 0.75rem;
 }
 
 .card-body .link {
     display: inline-block;
-    padding: 0.4rem 1rem;
+    padding: 0.4rem 0.9rem;
     background: var(--accent);
     color: #ffffff;
     text-decoration: none;
     border-radius: 6px;
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     font-weight: 500;
-    transition: opacity 0.15s ease;
+    transition: background 0.15s ease;
 }
 
 .card-body .link:hover {
-    opacity: 0.85;
+    background: var(--accent-hover);
 }
 
 .card-body .link:focus-visible {
@@ -239,7 +289,7 @@ header p {
     grid-column: 1 / -1;
     text-align: center;
     padding: 4rem 2rem;
-    color: #ef4444;
+    color: #dc2626;
 }
 
 /* === Responsive: single column on mobile === */
@@ -248,22 +298,30 @@ header p {
         padding: 1rem;
     }
 
+    .header-bar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
     .grid {
         grid-template-columns: 1fr;
         gap: 1rem;
-    }
-
-    header h1 {
-        font-size: 1.25rem;
     }
 }
 </style>
 </head>
 <body>
 
-<header>
-    <h1>Proyectos</h1>
-    <p>Selecciona un proyecto para comenzar</p>
+<header class="header-bar">
+    <div>
+        <h1>Proyectos</h1>
+        <p>Selecciona un proyecto para comenzar</p>
+    </div>
+    <div class="header-actions">
+        <a class="tool-btn" href="http://localhost:8080" target="_blank" rel="noopener">
+            <span class="tool-btn-icon">🗄️</span> phpMyAdmin
+        </a>
+    </div>
 </header>
 
 <main class="grid">
