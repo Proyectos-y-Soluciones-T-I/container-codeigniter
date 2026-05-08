@@ -44,17 +44,39 @@ if ($entries === false) {
             continue;
         }
 
-        $hasLogo = file_exists($path . '/logo.png');
-        $projects[] = [$entry, $hasLogo, $mtime];
+        $logoFile = findLogo($path);
+        $projects[] = [$entry, $logoFile, $mtime];
     }
 
     sort($projects);
 }
 
-// --- Helper ---
+// --- Helpers ---
 function humanize(string $name): string
 {
     return ucwords(str_replace(['-', '_'], ' ', $name));
+}
+
+/**
+ * Scan a project directory for a logo/image file.
+ * Returns the filename if found, or null if none.
+ * Looks for: logo*, favicon*, icon*  with extensions: png, jpg, jpeg, gif, svg, ico, webp
+ */
+function findLogo(string $projectPath): ?string
+{
+    $patterns = ['logo*', 'favicon*', 'icon*'];
+    $exts     = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'ico', 'webp'];
+
+    foreach ($patterns as $pattern) {
+        foreach ($exts as $ext) {
+            $files = glob($projectPath . '/' . $pattern . '.' . $ext, GLOB_NOSORT);
+            if (!empty($files)) {
+                return basename($files[0]);
+            }
+        }
+    }
+
+    return null;
 }
 ?><!DOCTYPE html>
 <html lang="es">
@@ -258,7 +280,7 @@ header p {
 
 <?php else: ?>
     <?php foreach ($projects as $proj):
-        [$name, $hasLogo, $mtime] = $proj;
+        [$name, $logoFile, $mtime] = $proj;
         $safeName   = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
         $humanName  = htmlspecialchars(humanize($name), ENT_QUOTES, 'UTF-8');
         $firstChar  = htmlspecialchars(mb_strtoupper($name[0]), ENT_QUOTES, 'UTF-8');
@@ -266,8 +288,8 @@ header p {
     ?>
     <article class="card">
         <div class="card-logo">
-            <?php if ($hasLogo): ?>
-            <img src="/<?= $safeName ?>/logo.png"
+            <?php if ($logoFile): ?>
+            <img src="/<?= $safeName ?>/<?= htmlspecialchars($logoFile, ENT_QUOTES, 'UTF-8') ?>"
                  alt="<?= $humanName ?> logo"
                  loading="lazy">
             <?php else: ?>
