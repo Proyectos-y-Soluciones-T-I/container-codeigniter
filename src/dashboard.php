@@ -318,7 +318,7 @@ body {
         <p>Selecciona un proyecto para comenzar</p>
     </div>
     <div class="header-actions">
-        <a class="tool-btn" href="http://localhost:8080" target="_blank" rel="noopener">
+        <a class="tool-btn" href="http://localhost:8081" target="_blank" rel="noopener">
             <span class="tool-btn-icon">🗄️</span> phpMyAdmin
         </a>
     </div>
