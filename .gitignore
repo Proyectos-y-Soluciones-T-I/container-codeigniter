@@ -2,6 +2,7 @@
 # Cada proyecto adentro es su propio repo de GitHub — sin conflictos
 src/*
 !src/.gitkeep
+!src/dashboard.php
 
 # Ignorar datos generados por contenedores de Docker
 mysql/
