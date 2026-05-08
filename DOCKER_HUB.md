@@ -1,5 +1,7 @@
 # container-codeigniter — Entorno de desarrollo PHP 7.4 tipo XAMPP
 
+> Este archivo se sincroniza automáticamente con la página de Docker Hub. Cualquier cambio acá aparece en la descripción de la imagen.
+
 Reemplazo de XAMPP basado en Docker. Soporta múltiples proyectos PHP/CodeIgniter 3 simultáneos dentro de `src/`, cada uno con su propio repo Git, sin conflictos de puertos ni de dependencias.
 
 ## ¿Qué incluye?
@@ -10,7 +12,8 @@ Reemplazo de XAMPP basado en Docker. Soporta múltiples proyectos PHP/CodeIgnite
 | Nginx       | stable-alpine    | 8888   |
 | MariaDB     | 10.5             | 3307   |
 | phpMyAdmin  | latest           | 8081   |
-| Composer    | 2.8              | —      |
+
+> Composer 2.8 viene incluido en la imagen PHP.
 
 ### Extensiones PHP incluidas
 
@@ -31,6 +34,7 @@ docker pull versionamientopys/container-codeigniter:latest
 Copiá este archivo en una carpeta vacía de tu máquina:
 
 ```yaml
+# Sincronizado con docker-compose.yml raíz. Si cambiás uno, actualizá el otro.
 version: '3.8'
 services:
   nginx:
@@ -40,11 +44,24 @@ services:
     ports:
       - 8888:80
     volumes:
-      - ./src:/var/www/html
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - ./src:/var/www/html:cached
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
-      - php
-      - db
+      php:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - ci-network
 
@@ -53,7 +70,18 @@ services:
     container_name: php-ci
     restart: always
     volumes:
-      - ./src:/var/www/html
+      - ./src:/var/www/html:cached
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep '[p]hp-fpm' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - ci-network
 
@@ -61,43 +89,66 @@ services:
     image: mariadb:10.5
     container_name: db-ci
     restart: always
+    command:
+      - --max-allowed-packet=1073741824
+      - --wait-timeout=28800
+      - --interactive-timeout=28800
+      - --net-read-timeout=3600
+      - --net-write-timeout=3600
+      - --innodb-buffer-pool-size=536870912
+      - --innodb-log-file-size=268435456
+      - --innodb-log-buffer-size=67108864
+      - --innodb-flush-log-at-trx-commit=2
     env_file:
       - .env
     ports:
       - 3307:3306
     volumes:
       - ./mysql:/var/lib/mysql
+      - ./my.cnf:/etc/mysql/conf.d/my.cnf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin --no-defaults ping -h 127.0.0.1 -u root -p\"${MYSQL_ROOT_PASSWORD}\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - ci-network
 
   phpmyadmin:
-    image: phpmyadmin/phpmyadmin
     container_name: phpmyadmin-ci
+    image: phpmyadmin/phpmyadmin
     ports:
-      - 8081:80
+      - '8081:80'
     restart: always
     env_file:
       - .env
     environment:
       PMA_HOST: db
       PMA_PORT: 3306
+      PMA_ABSOLUTE_URI: http://localhost:8081/
     depends_on:
-      - db
-    networks:
-      - ci-network
-
-  composer:
-    image: composer:2.8
-    container_name: composer
-    volumes:
-      - ./src:/app
-    working_dir: /app
+      db:
+        condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - ci-network
 
 networks:
   ci-network:
+    driver: bridge
 ```
+
+> El `nginx/default.conf` del repositorio incluye headers de seguridad adicionales (X-Frame-Options, X-Content-Type-Options, etc.) que no se muestran en este ejemplo mínimo.
 
 ### 3. Creá tu `.env`
 
@@ -216,9 +267,12 @@ $db   = 'mydb';    // MYSQL_DATABASE del .env
 
 ## Usar Composer
 
+Composer 2.8 está incluido en la imagen PHP — no hace falta un servicio separado. Usalo directamente con `docker compose run`:
+
 ```bash
-docker compose run --rm composer install
-docker compose run --rm composer require vendor/paquete
+docker compose run --rm php composer install --working-dir=/app/mi-proyecto
+docker compose run --rm php composer require vendor/paquete --working-dir=/app/mi-proyecto
+docker compose run --rm php composer update --working-dir=/app/mi-proyecto
 ```
 
 ---
@@ -258,6 +312,10 @@ docker compose run --rm composer require vendor/paquete
 ## Código fuente
 
 GitHub: [Proyectos-y-Soluciones-T-I/container-codeigniter](https://github.com/Proyectos-y-Soluciones-T-I/container-codeigniter)
+
+---
+
+¿Preferís compilar la imagen vos mismo? Mirá [README.md](README.md) para el setup completo con build local, múltiples proyectos, y troubleshooting.
 
 ---
 

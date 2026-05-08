@@ -39,9 +39,202 @@ container-codeigniter/
 └── .env                  ← variables de entorno (gitignored, crear desde .env.example)
 ```
 
+## Inicio Rápido
+
+Elegí cómo querés empezar:
+
+- **Opción A: Usando la imagen de Docker Hub** — bajá la imagen lista y empezá ya (recomendado si no necesitás modificar PHP).
+- **Opción B: Clonar el repositorio (control total)** — compilá la imagen vos mismo y tené control total sobre la configuración.
+
+### Opción A: Usando la imagen de Docker Hub
+
+Si solo querés un entorno de desarrollo funcionando rápido, usá la imagen publicada en Docker Hub:
+
+```bash
+docker pull versionamientopys/container-codeigniter:latest
+```
+
+#### docker-compose.yml
+
+Creá un archivo `docker-compose.yml` en una carpeta vacía:
+
+> Este ejemplo incluye healthchecks, logging con rotación y mounts optimizados — refleja la configuración real del repositorio.
+
+```yaml
+version: '3.8'
+services:
+  nginx:
+    image: nginx:stable-alpine
+    container_name: nginx-ci
+    restart: always
+    ports:
+      - 8888:80
+    volumes:
+      - ./src:/var/www/html:cached
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      php:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  php:
+    image: versionamientopys/container-codeigniter:latest
+    container_name: php-ci
+    restart: always
+    volumes:
+      - ./src:/var/www/html:cached
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep '[p]hp-fpm' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  db:
+    image: mariadb:10.5
+    container_name: db-ci
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - 3307:3306
+    volumes:
+      - ./mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p\"${MYSQL_ROOT_PASSWORD}\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: phpmyadmin-ci
+    ports:
+      - '8081:80'
+    restart: always
+    env_file:
+      - .env
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - ci-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  ci-network:
+    driver: bridge
+```
+
+#### Variables de entorno
+
+Copiá el archivo `.env.example` a `.env`:
+
+```bash
+cp .env.example .env
+```
+
+Y ajustá las credenciales. El archivo debe tener al menos:
+
+```env
+MYSQL_ROOT_PASSWORD=cambia-esto
+MYSQL_DATABASE=mi_base
+MYSQL_USER=mi_usuario
+MYSQL_PASSWORD=mi_password
+```
+
+#### Configuración de Nginx
+
+Creá la carpeta `nginx/` con un archivo `default.conf`. Este es un ejemplo mínimo — el repositorio incluye la versión completa con headers de seguridad adicionales (X-Frame-Options, X-Content-Type-Options, etc.):
+
+```nginx
+server {
+    listen 80;
+    index index.php index.html;
+    server_name localhost;
+    root /var/www/html;
+    client_max_body_size 1024M;
+
+    location = / {
+        autoindex on;
+        autoindex_exact_size off;
+        autoindex_localtime on;
+    }
+
+    location / {
+        try_files $uri $uri/ @project_fallback;
+    }
+
+    location @project_fallback {
+        rewrite ^(/[^/?]+) $1/index.php?$args last;
+    }
+
+    location ~ \.php$ {
+        try_files $uri =404;
+        fastcgi_split_path_info ^(.+\.php)(/.+)$;
+        fastcgi_pass php:9000;
+        fastcgi_index index.php;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param PATH_INFO $fastcgi_path_info;
+    }
+
+    location ~ /\.ht {
+        deny all;
+    }
+}
+```
+
+#### Levantar el stack
+
+```bash
+docker compose up -d
+```
+
+#### Verificar
+
+| URL | Servicio |
+|-----|----------|
+| http://localhost:8888 | Lista de proyectos (htdocs) |
+| http://localhost:8081 | PhpMyAdmin |
+
+¿Necesitás más detalles? Mirá [DOCKER_HUB.md](DOCKER_HUB.md) para la referencia completa.
+
 ---
 
-## Primera vez — setup inicial
+### Opción B: Clonar el repositorio (control total)
+
+Este es el camino recomendado si necesitás modificar la imagen, customizar PHP, o contribuir al proyecto.
 
 ### 1. Requisitos
 
