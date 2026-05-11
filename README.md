@@ -48,15 +48,45 @@ Elegí cómo querés empezar:
 
 ### Opción A: Usando la imagen de Docker Hub
 
-Si solo querés un entorno de desarrollo funcionando rápido, usá la imagen publicada en Docker Hub:
+Si solo querés un entorno de desarrollo funcionando rápido, usá el script de setup.
+Crea automáticamente toda la estructura de carpetas, los archivos de configuración y te pregunta las credenciales (o podés dejar los valores por defecto).
+
+**Linux / macOS**
 
 ```bash
-docker pull versionamientopys/container-codeigniter:latest
+curl -fsSL https://raw.githubusercontent.com/Proyectos-y-Soluciones-T-I/container-codeigniter/main/setup.sh | bash
 ```
 
-#### docker-compose.yml
+**Windows (PowerShell)**
 
-Creá un archivo `docker-compose.yml` en una carpeta vacía:
+```powershell
+irm https://raw.githubusercontent.com/Proyectos-y-Soluciones-T-I/container-codeigniter/main/setup.ps1 | iex
+```
+
+> El script no ejecuta `docker compose up` — primero te muestra lo que generó para que lo revisés.
+
+El script crea:
+- `src/` — carpeta donde van tus proyectos PHP
+- `nginx/default.conf` — configuración de Nginx lista para CodeIgniter 3
+- `my.cnf` — configuración optimizada de MariaDB
+- `.env` — con las credenciales que ingresaste
+- `docker-compose.yml` — usando la imagen de Docker Hub
+
+Una vez que el script termina:
+
+```bash
+# Cloná tus proyectos en src/
+cd src && git clone https://github.com/tu-usuario/mi-proyecto.git
+
+# Levantá el stack
+docker compose up -d
+```
+
+---
+
+#### Configuración manual (sin script)
+
+Si preferís configurar todo a mano, creá un archivo `docker-compose.yml` en una carpeta vacía:
 
 > Este ejemplo incluye healthchecks, logging con rotación y mounts optimizados — refleja la configuración real del repositorio.
 
