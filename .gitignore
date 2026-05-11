@@ -5,6 +5,7 @@ src/*
 !src/dashboard.php
 
 # Ignorar datos generados por contenedores de Docker
+./mysql/
 mysql/
 logs/
 *.log
