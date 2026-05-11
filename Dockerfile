@@ -68,4 +68,5 @@ RUN curl -sSL https://raw.githubusercontent.com/renatomefi/php-fpm-healthcheck/m
         echo "session.cookie_secure=0"; \
         echo "session.use_strict_mode=1"; \
         echo "session.sid_length=48"; \
+        echo "output_buffering=On"; \
     } >> /usr/local/etc/php/conf.d/custom.ini
