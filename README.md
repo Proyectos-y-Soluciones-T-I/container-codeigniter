@@ -116,7 +116,7 @@ services:
     ports:
       - 3307:3306
     volumes:
-      - ./mysql:/var/lib/mysql
+      - dbdata:/var/lib/mysql
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p\"${MYSQL_ROOT_PASSWORD}\" || exit 1"]
       interval: 10s
@@ -154,6 +154,9 @@ services:
 networks:
   ci-network:
     driver: bridge
+
+volumes:
+  dbdata:
 ```
 
 #### Variables de entorno
@@ -346,6 +349,26 @@ Para dumps muy grandes (cientos de MB o más), usar `sh -c` para forzar los lím
 ```bash
 docker exec -i db-ci sh -c 'mysql -u root -p<tu-password> --max_allowed_packet=1G <nombre_db>' < mi_dump.sql
 ```
+
+### Importar un dump con conversión de collation (recomendado)
+
+Si el dump fue exportado desde **MySQL 8**, puede contener collations como `utf8mb4_0900_ai_ci` o `utf8mb4_0900_as_ci` que **no existen en MariaDB 10.5** y causan error al importar.
+
+La solución es convertirlas a `utf8mb4_unicode_ci` en el momento de la importación usando `sed`:
+
+```bash
+sed -e 's/utf8mb4_0900_ai_ci/utf8mb4_unicode_ci/g' \
+    -e 's/utf8mb4_0900_as_ci/utf8mb4_unicode_ci/g' \
+    /ruta/al/archivo.sql | docker exec -i db-ci mysql -u root -p<tu-password> <nombre_db>
+```
+
+> Reemplazá `/ruta/al/archivo.sql` por la ruta real del archivo, por ejemplo `./backup.sql` o `C:\dumps\mi_proyecto.sql`.
+
+**¿Por qué este comando?**
+
+MariaDB 10.5 usa `utf8mb4_unicode_ci` como collation equivalente. Las collations `0900` son exclusivas de MySQL 8 y no tienen equivalente directo en versiones anteriores. El `sed` hace la sustitución en el stream, sin modificar el archivo original.
+
+Se puede usar como práctica general para cualquier importación — no hay riesgo si el dump ya usa collations compatibles, simplemente no reemplaza nada.
 
 ### Exportar una base de datos
 
