@@ -5,6 +5,7 @@ Permite correr múltiples proyectos PHP/CodeIgniter 3 simultáneamente dentro de
 cada uno en su propio repositorio de GitHub, sin conflictos entre ellos.
 
 > Imagen Docker publicada en Docker Hub: `versionamientopys/container-codeigniter`
+> Wiki completa: [github.com/.../container-codeigniter/wiki](https://github.com/Proyectos-y-Soluciones-T-I/container-codeigniter/wiki)
 
 ---
 
@@ -678,6 +679,16 @@ Causa más común: credenciales incorrectas en `.env`.
 ```bash
 docker-compose restart db
 ```
+
+---
+
+---
+
+## Wiki
+
+La documentación completa está en la [Wiki de GitHub](https://github.com/Proyectos-y-Soluciones-T-I/container-codeigniter/wiki).
+
+**¿Querés contribuir o actualizar la wiki?** Los archivos viven en `wiki/` dentro de este repositorio. Cualquier push a `wiki/**` en `main` sincroniza automáticamente con la Wiki de GitHub via [GitHub Actions](.github/workflows/wiki-sync.yml). ¡Mandá un PR!
 
 ---
 
