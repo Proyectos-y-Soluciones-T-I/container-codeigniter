@@ -1,0 +1,44 @@
+name: Sync Wiki
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'wiki/**'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main repo
+        uses: actions/checkout@v4
+
+      - name: Sync wiki/ to GitHub Wiki
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Configurar git
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Clonar el repo wiki
+          git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" wiki-repo
+
+          # Limpiar el wiki repo (pero mantener .git)
+          cd wiki-repo
+          find . -maxdepth 1 -name "*.md" -delete 2>/dev/null || true
+
+          # Copiar los archivos de wiki/ al wiki repo
+          cp ../wiki/*.md .
+
+          # Verificar si hay cambios
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "No changes to wiki, skipping commit."
+            exit 0
+          fi
+
+          # Commitear y pushear
+          git add -A
+          git commit -m "docs(wiki): sync from main repo [skip ci]"
+          git push origin master
