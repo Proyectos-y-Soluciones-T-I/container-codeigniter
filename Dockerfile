@@ -16,6 +16,7 @@ RUN apk add --no-cache \
         libxml2 \
         zlib \
         mysql-client \
+        fcgi \
     && apk add --no-cache --virtual .build-deps \
         libpng-dev \
         libjpeg-turbo-dev \
@@ -48,25 +49,16 @@ RUN apk add --no-cache \
 # Instalar Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# Instalar healthcheck script y configurar PHP en un solo RUN
-RUN curl -sSL https://raw.githubusercontent.com/renatomefi/php-fpm-healthcheck/master/healthcheck.sh | sed 's/\r$//' \
-    > /usr/local/bin/php-fpm-healthcheck \
-    && chmod +x /usr/local/bin/php-fpm-healthcheck \
-    && { \
-        echo "post_max_size=1024M"; \
-        echo "upload_max_filesize=1024M"; \
-        echo "memory_limit=1024M"; \
-        echo "max_input_time=900"; \
-        echo "max_execution_time=900"; \
-        echo "session.save_path=/tmp"; \
-        echo "expose_php=Off"; \
-        echo "display_errors=Off"; \
-        echo "display_startup_errors=Off"; \
-        echo "log_errors=On"; \
-        echo "error_log=/dev/stderr"; \
-        echo "session.cookie_httponly=1"; \
-        echo "session.cookie_secure=0"; \
-        echo "session.use_strict_mode=1"; \
-        echo "session.sid_length=48"; \
-        echo "output_buffering=On"; \
-    } >> /usr/local/etc/php/conf.d/custom.ini
+# Healthcheck: verificar que php-fpm responde en el pool por defecto
+RUN echo '#!/bin/sh' > /usr/local/bin/php-fpm-healthcheck \
+    && echo 'SCRIPT_NAME=/ping SCRIPT_FILENAME=/ping REQUEST_METHOD=GET cgi-fcgi -bind -connect 127.0.0.1:9000' >> /usr/local/bin/php-fpm-healthcheck \
+    && chmod +x /usr/local/bin/php-fpm-healthcheck
+
+# Configuración PHP externalizada (php/custom.ini) — cambiable sin rebuild
+COPY php/custom.ini /usr/local/etc/php/conf.d/custom.ini
+
+# Habilitar ping de php-fpm para healthcheck
+COPY php/zz-healthcheck.conf /usr/local/etc/php-fpm.d/zz-healthcheck.conf
+
+# Directorio de trabajo por defecto
+WORKDIR /var/www/html

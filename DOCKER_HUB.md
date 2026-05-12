@@ -69,10 +69,18 @@ services:
     image: versionamientopys/container-codeigniter:latest
     container_name: php-ci
     restart: always
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
     volumes:
       - ./src:/var/www/html:cached
+    depends_on:
+      db:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "ps aux | grep '[p]hp-fpm' || exit 1"]
+      test: ["CMD-SHELL", "/usr/local/bin/php-fpm-healthcheck"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -267,12 +275,12 @@ $db   = 'mydb';    // MYSQL_DATABASE del .env
 
 ## Usar Composer
 
-Composer 2.8 está incluido en la imagen PHP — no hace falta un servicio separado. Usalo directamente con `docker compose run`:
+Composer 2 está incluido en la imagen PHP. Usalo con `docker exec`:
 
 ```bash
-docker compose run --rm php composer install --working-dir=/app/mi-proyecto
-docker compose run --rm php composer require vendor/paquete --working-dir=/app/mi-proyecto
-docker compose run --rm php composer update --working-dir=/app/mi-proyecto
+docker exec -it php-ci sh -c "cd /var/www/html/mi-proyecto && composer install"
+docker exec -it php-ci sh -c "cd /var/www/html/mi-proyecto && composer require vendor/paquete"
+docker exec -it php-ci sh -c "cd /var/www/html/mi-proyecto && composer update"
 ```
 
 ---
@@ -286,6 +294,9 @@ docker compose run --rm php composer update --working-dir=/app/mi-proyecto
 | `memory_limit`        | 1024M  |
 | `max_execution_time`  | 900s   |
 | `max_input_time`      | 900s   |
+| `date.timezone`       | America/Bogota |
+| `opcache`             | activado (`validate_timestamps=1`) |
+| `display_errors`      | Off (solo logs) |
 
 ---
 
@@ -304,8 +315,10 @@ docker compose run --rm php composer update --working-dir=/app/mi-proyecto
 | Tag      | Descripción                      |
 |----------|----------------------------------|
 | `latest` | Última build estable desde main  |
-| `1.0.0`  | Versión fija                     |
-| `1.0`    | Track de versión menor           |
+| `1.1.0`  | Opcache, gzip, healthcheck real, config PHP externalizada |
+| `1.0.2`  | Fix output_buffering             |
+| `1.0.1`  | Scripts de setup interactivos    |
+| `1.0.0`  | Versión inicial                  |
 
 ---
 

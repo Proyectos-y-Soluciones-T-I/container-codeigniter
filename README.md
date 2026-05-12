@@ -32,6 +32,9 @@ container-codeigniter/
 │   └── proyecto-b/       ← repo GitHub independiente
 ├── nginx/
 │   └── default.conf
+├── php/
+│   ├── custom.ini        ← configuración PHP (editable sin rebuild)
+│   └── zz-healthcheck.conf ← habilita ping de php-fpm para healthcheck
 ├── mysql/                ← datos de MariaDB (gitignored)
 ├── Dockerfile
 ├── docker-compose.yml
@@ -479,20 +482,31 @@ docker exec -it db-ci mysql -u root -p
 
 ### Composer por proyecto
 
-El servicio de Composer ya no corre como daemon. Se usa con `docker-compose run`:
+Composer está incluido dentro del contenedor PHP. Se corre con `docker exec`:
 
 ```bash
 # Instalar dependencias
-docker-compose run --rm composer install --working-dir=/app/mi-proyecto
+docker exec -it php-ci sh -c "cd /var/www/html/mi-proyecto && composer install"
 
 # Agregar un paquete
-docker-compose run --rm composer require vendor/paquete --working-dir=/app/mi-proyecto
+docker exec -it php-ci sh -c "cd /var/www/html/mi-proyecto && composer require vendor/paquete"
 
 # Actualizar dependencias
-docker-compose run --rm composer update --working-dir=/app/mi-proyecto
+docker exec -it php-ci sh -c "cd /var/www/html/mi-proyecto && composer update"
 ```
 
-> El flag `--rm` elimina el contenedor después de usarlo para no acumular contenedores detenidos.
+O entrando al contenedor primero:
+
+```bash
+docker exec -it php-ci sh
+cd /var/www/html/mi-proyecto
+composer install
+```
+
+> **Nota sobre seguridad de paquetes:** Si encontrás errores de advisories con paquetes viejos (PHPUnit 4/5, etc.), podés deshabilitarlo temporalmente:
+> ```bash
+> docker exec -it php-ci sh -c "cd /var/www/html/mi-proyecto && composer update --ignore-platform-req=php --no-audit"
+> ```
 
 ---
 
@@ -519,11 +533,11 @@ docker-compose run --rm composer update --working-dir=/app/mi-proyecto
 
 Todos los servicios tienen healthchecks configurados:
 - **Nginx**: verifica que el servidor responda en puerto 80
-- **PHP-FPM**: verifica que el proceso php-fpm esté saludable
+- **PHP-FPM**: usa `cgi-fcgi` para hacer un ping real al pool de php-fpm (endpoint `/ping`)
 - **MariaDB**: verifica que el servidor acepte conexiones
 - **phpMyAdmin**: depende de que MariaDB esté healthy antes de arrancar
 
-Esto evita errores 502 al iniciar el stack. El `depends_on` ahora usa `condition: service_healthy`.
+Esto evita errores 502 al iniciar el stack. El `depends_on` usa `condition: service_healthy` en todos los servicios que tienen dependencias.
 
 ### Logging con rotación
 
@@ -547,16 +561,49 @@ volumes:
 - Caché de assets estáticos (CSS, JS, imágenes) por 30 días
 - Bloqueo de acceso a archivos ocultos (`.env`, `.git`, etc.)
 - Bloqueo explícito de `composer.json`, `composer.lock`, `package.json`
+- Bloqueo de `vendor/`, `application/config/` y `application/logs/` — no accesibles por HTTP
 
 **PHP**:
 - `expose_php=Off` — no expone versión de PHP en headers
-- `display_errors=Off` — errores no se muestran en producción (solo logs)
+- `display_errors=Off` — errores no se muestran en pantalla (solo logs)
 - `log_errors=On` — errores van a stderr (capturados por Docker logs)
 - Cookies de sesión con `httponly=1` y `use_strict_mode=1`
 
 **MariaDB**:
 - `my.cnf` montado como read-only (`:ro`)
 - Variables de entorno para credenciales (nunca hardcodeadas)
+
+### Configuración PHP sin rebuild
+
+La configuración PHP está externalizada en `php/custom.ini`, montado como volumen.
+Para cambiar cualquier parámetro PHP (timezone, memory_limit, display_errors, opcache, etc.)
+editá ese archivo y reiniciá el contenedor — **sin necesidad de reconstruir la imagen**:
+
+```bash
+# Editar configuración
+# vi php/custom.ini  (o tu editor preferido)
+
+# Aplicar cambios
+docker compose restart php
+```
+
+El archivo incluye comentarios para guiarte. Por ejemplo, para activar errores en pantalla:
+
+```ini
+; Descomentar para ver errores en pantalla durante desarrollo
+display_errors = On
+```
+
+### Opcache
+
+Opcache está activado con `validate_timestamps=1` (ideal para desarrollo):
+- PHP detecta cambios en archivos automáticamente sin reiniciar
+- Para simular comportamiento de producción, cambiar a `validate_timestamps=0` en `php/custom.ini`
+
+### Compresión Gzip
+
+Nginx comprime automáticamente respuestas HTML, CSS, JS, JSON y SVG.
+Reduce el tamaño de transferencia entre un 60-80% sin configuración adicional.
 
 ### Nginx: caché de assets estáticos
 
