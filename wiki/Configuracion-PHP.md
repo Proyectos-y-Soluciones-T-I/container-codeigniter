@@ -95,30 +95,75 @@ Opcache acelera PHP guardando bytecode compilado en memoria.
 ```ini
 [opcache]
 opcache.enable = 1
-opcache.memory_consumption = 128        ; MB de memoria para opcache
-opcache.interned_strings_buffer = 16    ; MB para strings
-opcache.max_accelerated_files = 10000   ; Máximo de archivos en caché
-opcache.validate_timestamps = 1         ; Detectar cambios automáticamente
-opcache.revalidate_freq = 2             ; Verificar cada 2 segundos
+opcache.enable_cli = 0
+opcache.memory_consumption = 256        ; MB de memoria para opcache (aumentado)
+opcache.interned_strings_buffer = 32    ; MB para strings internos (aumentado)
+opcache.max_accelerated_files = 20000   ; Máximo de archivos en caché (aumentado)
+opcache.validate_timestamps = 0         ; No validar timestamps (modo producción)
+opcache.revalidate_freq = 0
 opcache.fast_shutdown = 1
-opcache.enable_cli = 0                  ; Desactivado en CLI (no útil)
+opcache.file_update_protection = 2
+opcache.huge_code_pages = 1
+opcache.optimization_level = 0x7FFEBFFF
 ```
 
-### Modo desarrollo vs producción
+### Modo producción (actual)
+
+Opcache está configurado para **modo producción** con `validate_timestamps=0`. Esto da máximo rendimiento pero **requiere reiniciar el contenedor** después de cada cambio en archivos PHP:
+
+```bash
+docker compose restart php
+```
+
+Si necesitás **modo desarrollo** (detectar cambios sin reiniciar), cambiá en `php/custom.ini`:
 
 ```ini
-; 🔧 DESARROLLO (actual) — detecta cambios sin reiniciar
+; 🔧 DESARROLLO — detecta cambios sin reiniciar
 opcache.validate_timestamps = 1
 opcache.revalidate_freq = 2
-
-; 🏭 PRODUCCIÓN — máximo rendimiento, necesita reinicio tras cambios
-; opcache.validate_timestamps = 0
 ```
 
 **Verificar que opcache está funcionando:**
 
 ```bash
 docker exec -it php-ci php -r "var_dump(opcache_get_status());"
+```
+
+---
+
+## PHP-FPM Pool (`php/www-pool.conf`)
+
+El archivo `php/www-pool.conf` se monta como `zzz-www-pool.conf` y sobrescribe la configuración por defecto del pool `www`.
+
+```ini
+[www]
+pm = dynamic
+pm.min_spare_servers = 10
+pm.max_spare_servers = 20
+pm.start_servers = 15
+pm.max_children = 100        ; Hasta 100 workers concurrentes
+pm.max_requests = 1000       ; Recicla cada 1000 requests (previene memory leaks)
+pm.process_idle_timeout = 10s
+request_terminate_timeout = 900s
+slowlog = /dev/null
+request_slowlog_timeout = 10s
+pm.status_path = /status
+catch_workers_output = yes
+clear_env = no
+```
+
+**Ajustar según memoria disponible:**
+
+| `pm.max_children` | Memoria PHP-FPM estimada |
+|-------------------|--------------------------|
+| 20 (default viejo) | ~1-2 GB |
+| 100 (actual) | ~5-10 GB |
+| 50 (recomendado para 4GB) | ~2-4 GB |
+
+Si el servidor tiene poca RAM, reducir `pm.max_children` en `php/www-pool.conf` y reiniciar:
+
+```bash
+docker compose restart php
 ```
 
 ---

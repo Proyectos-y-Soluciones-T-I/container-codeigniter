@@ -20,6 +20,8 @@ Errores comunes, causas y soluciones.
 - [Cambios en archivos no se reflejan](#cambios-no-reflejan)
 - [Puerto ya en uso](#puerto-en-uso)
 - [El contenedor se llena de logs](#logs-llenan-disco)
+- [CodeIgniter 3: errores E_DEPRECATED (dynamic property)](#ci3-deprecated-dynamic-property)
+- [Unknown database](#unknown-database)
 - [Advertencia: "version is obsolete"](#version-obsolete)
 
 ---
@@ -226,7 +228,7 @@ Causa más común: credenciales incorrectas en `.env`.
 
 ## <a id="cambios-no-reflejan"></a>Cambios en archivos no se reflejan
 
-**Archivos PHP:** opcache tiene `validate_timestamps=1`, los detecta en 2 segundos. Si no:
+**Archivos PHP:** opcache ahora usa `validate_timestamps=0` (modo producción). Para ver cambios, reiniciar:
 
 ```bash
 docker compose restart php
@@ -241,7 +243,8 @@ docker compose restart nginx
 **Dockerfile:** requiere rebuild:
 
 ```bash
-docker compose up -d --build
+docker compose build --no-cache php
+docker compose up -d
 ```
 
 ---
@@ -281,6 +284,75 @@ Todos los servicios tienen rotación automática (10 MB, 3 archivos). Si necesit
 docker compose down
 docker system prune -f   # ⚠️ Elimina contenedores parados, redes no usadas
 ```
+
+---
+
+## <a id="ci3-deprecated-dynamic-property"></a>CodeIgniter 3: errores E_DEPRECATED (dynamic property)
+
+```
+Severity: 8192
+Message: Creation of dynamic property CI_URI::$config is deprecated
+Filename: core/URI.php
+```
+
+y decenas más en `CI_Router`, `Controller.php`, `Loader.php`, `Driver.php`.
+
+**Causa:** El contenedor está corriendo **PHP 8.x**. CodeIgniter 3 fue escrito para PHP 5.x/7.x — en PHP 8.0+ las propiedades dinámicas sin declaración explícita generan `E_DEPRECATED`. En PHP 8.2+ estos errores rompen `session_start()`, causan `headers already sent`, y pueden dejar la aplicación inoperable.
+
+**Solución definitiva:**
+
+```bash
+docker compose build --no-cache php
+docker compose up -d
+```
+
+El Dockerfile está fijado en `php:7.4.33-fpm-alpine`. Si lo cambiaron a 8.x manualmente, deben revertirlo.
+
+**Verificar versión de PHP en el contenedor:**
+
+```bash
+docker exec -it php-ci php -v
+```
+
+Debe mostrar `PHP 7.4.33`. Si muestra 8.x, reconstruir con `--no-cache`.
+
+> **Nota:** `error_reporting = E_ALL & ~E_DEPRECATED` en `php/custom.ini` solo oculta los mensajes — NO resuelve errores como `headers already sent`. La única solución real es la versión correcta de PHP.
+
+---
+
+## <a id="unknown-database"></a>Unknown database
+
+```
+Type: mysqli_sql_exception
+Message: Unknown database 'sicof'
+```
+
+**Causa:** El `.env` del contenedor tiene un nombre de base de datos que no coincide con el `database.php` de CodeIgniter.
+
+**Solución:** Verificar que `.env` y `application/config/database.php` usen el mismo nombre:
+
+`.env`:
+```
+MYSQL_DATABASE=sicof
+```
+
+`application/config/database.php`:
+```php
+'database' => 'sicof',
+```
+
+Si el `.env` dice `development` pero `database.php` dice `sicof`, MariaDB crea la base `development` y CodeIgniter intenta conectarse a `sicof` — error.
+
+**Alinear:**
+1. Editá `.env` → `MYSQL_DATABASE=sicof` (o el nombre que corresponda)
+2. Reiniciá MariaDB:
+   ```bash
+   docker compose restart db
+   ```
+3. Si la base de datos anterior ya tenía datos importados, toca reimportar:
+   ```bash
+   docker exec -i db-ci mysql -u root -proot sicof < dump.sql
+   ```
 
 ---
 

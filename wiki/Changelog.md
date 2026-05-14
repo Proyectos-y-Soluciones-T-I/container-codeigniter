@@ -4,7 +4,21 @@ Todos los cambios notables del proyecto. Formato basado en [Keep a Changelog](ht
 
 ---
 
-## [v1.1.0] - 2026-05-12
+## [v1.1.1] - 2026-05-14
+
+### Changed
+- **PHP 7.4.33 fijado explícitamente** en el Dockerfile — evita regresiones a 8.x que rompen CodeIgniter 3 con errores `E_DEPRECATED` (creation of dynamic property).
+- **Dockerfile multi-stage** (builder + runtime) — reduce tamaño de imagen separando dependencias de compilación.
+- **Dockerfile: `USER appuser`** — el contenedor PHP corre como usuario no-root.
+- **Opcache modo producción** — `validate_timestamps=0`, buffers aumentados (256MB/32MB), `max_accelerated_files=20000`, `huge_code_pages=1`.
+- **PHP-FPM Pool optimizado** — `php/www-pool.conf` con `pm.max_children=100`, reciclaje cada 1000 requests, `request_terminate_timeout=900s`.
+- **Nginx fastcgi buffers aumentados** — `buffer_size=256k`, `buffers=8x256k`, `busy_buffers_size=512k`, `fastcgi_keep_conn on`.
+
+### Fixed
+- **`Unknown database 'sicof'`** — `.env` ahora usa `MYSQL_DATABASE=sicof`, alineado con `database.php` de CodeIgniter.
+
+---
+
 
 ### Added
 - **Opcache** activado con `validate_timestamps=1` — PHP detecta cambios sin reiniciar
@@ -62,6 +76,7 @@ Todos los cambios notables del proyecto. Formato basado en [Keep a Changelog](ht
 - Bloqueo de archivos sensibles (.env, .git, composer.*, etc.)
 - Rewrite automático para proyectos CodeIgniter 3 en subdirectorios (`@project_fallback`)
 
+[v1.1.1]: https://github.com/Proyectos-y-Soluciones-T-I/container-codeigniter/compare/v1.1.0...v1.1.1
 [v1.1.0]: https://github.com/Proyectos-y-Soluciones-T-I/container-codeigniter/compare/v1.0.2...v1.1.0
 [v1.0.2]: https://github.com/Proyectos-y-Soluciones-T-I/container-codeigniter/compare/v1.0.1...v1.0.2
 [v1.0.1]: https://github.com/Proyectos-y-Soluciones-T-I/container-codeigniter/compare/v1.0.0...v1.0.1

@@ -7,7 +7,23 @@ Versionado siguiendo [Semantic Versioning](https://semver.org/lang/es/).
 
 ---
 
-## [1.1.0] - 2026-05-12
+## [1.1.1] - 2026-05-14
+
+### Changed
+- **PHP 7.4.33 fijado explícitamente** en el Dockerfile — evita regresiones accidentales a 8.x que rompen CodeIgniter 3 con errores `E_DEPRECATED` (dynamic properties).
+- **Dockerfile multi-stage** (builder + runtime) — reduce tamaño de imagen separando dependencias de compilación.
+- **Dockerfile: `USER appuser`** — el contenedor PHP ahora corre como usuario no-root por seguridad.
+- **Dockerfile: `HEALTHCHECK`** agregado a la imagen misma (no solo docker-compose).
+- **Opcache modo producción** — `validate_timestamps=0`, buffers aumentados (256MB/32MB), `max_accelerated_files=20000`, `huge_code_pages=1`.
+- **PHP-FPM Pool optimizado** — `php/www-pool.conf` con `pm.max_children=100`, reciclaje cada 1000 requests, `request_terminate_timeout=900s`.
+- **Nginx fastcgi buffers aumentados** — `buffer_size=256k`, `buffers=8x256k`, `busy_buffers_size=512k`. Agregado `fastcgi_keep_conn on` y `fastcgi_request_buffering on`.
+- **Ulimits en docker-compose** — `nofile: 65536` para el servicio PHP, soporta alta concurrencia.
+
+### Fixed
+- **`Unknown database 'sicof'`** — el `.env` ahora usa `MYSQL_DATABASE=sicof` (antes `development`), alineado con el `database.php` de CodeIgniter.
+
+---
+
 
 ### Added
 - **`php/custom.ini`** — configuración PHP externalizada y montada como volumen. Editable sin rebuild de imagen.
@@ -67,6 +83,7 @@ Versionado siguiendo [Semantic Versioning](https://semver.org/lang/es/).
 - Bloqueo de archivos sensibles en Nginx (`.env`, `.git`, `composer.json`, etc.).
 - Rewrite automático para proyectos CodeIgniter 3 en subdirectorios (`@project_fallback`).
 
+[1.1.1]: https://github.com/Proyectos-y-Soluciones-T-I/container-codeigniter/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/Proyectos-y-Soluciones-T-I/container-codeigniter/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/Proyectos-y-Soluciones-T-I/container-codeigniter/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/Proyectos-y-Soluciones-T-I/container-codeigniter/compare/v1.0.0...v1.0.1
