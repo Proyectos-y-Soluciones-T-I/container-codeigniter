@@ -92,12 +92,16 @@ RUN echo '#!/bin/sh' > /usr/local/bin/php-fpm-healthcheck \
 COPY php/custom.ini /usr/local/etc/php/conf.d/custom.ini
 COPY php/zz-healthcheck.conf /usr/local/etc/php-fpm.d/zz-healthcheck.conf
 
+# Copy entrypoint script — must run as root to chown upload dirs at startup
+COPY php/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
 # Set working directory
 WORKDIR /var/www/html
-
-# Switch to non-root user
-USER appuser
 
 # Add health check directive for the image
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=10s \
     CMD php-fpm-healthcheck
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["php-fpm"]
