@@ -93,8 +93,11 @@ COPY php/custom.ini /usr/local/etc/php/conf.d/custom.ini
 COPY php/zz-healthcheck.conf /usr/local/etc/php-fpm.d/zz-healthcheck.conf
 
 # Copy entrypoint script — must run as root to chown upload dirs at startup
+# sed strips Windows CRLF (\r) so the shebang is valid on Linux regardless of
+# the developer's core.autocrlf setting when they cloned the repo.
 COPY php/entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+RUN sed -i 's/\r//' /usr/local/bin/entrypoint.sh \
+    && chmod +x /usr/local/bin/entrypoint.sh
 
 # Set working directory
 WORKDIR /var/www/html

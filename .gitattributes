@@ -1,0 +1,11 @@
+# Normalize line endings for all text files
+* text=auto
+
+# Force LF for shell scripts (must not have CRLF — breaks Linux shebangs)
+*.sh text eol=lf
+
+# Force LF for Docker-related files
+Dockerfile text eol=lf
+docker-compose.yml text eol=lf
+*.conf text eol=lf
+*.ini text eol=lf
