@@ -3,9 +3,10 @@
  * Dashboard Visual de Proyectos
  *
  * Self-contained PHP dashboard that auto-discovers projects in src/
- * and renders them as a responsive card grid with dark theme.
+ * and renders them as a responsive card grid with Tailwind CSS.
  *
- * No JS, no external dependencies — pure PHP 7.4+ inline CSS.
+ * Dark-first theme with light toggle. No build step, no JS framework.
+ * Uses Tailwind Play CDN with minimal fallback for offline use.
  */
 
 // --- Configuration ---
@@ -18,19 +19,16 @@ $error    = null;
 $entries = scandir($docRoot);
 
 if ($entries === false) {
-    // src/ is not readable at all — return 500
     http_response_code(500);
     $error = 'Unable to read projects directory.';
 } else {
     foreach ($entries as $entry) {
-        // Skip dotfiles, dots, current dir, parent dir
         if ($entry[0] === '.') {
             continue;
         }
 
         $path = $docRoot . '/' . $entry;
 
-        // Only directories; skip files and our own script
         if (!is_dir($path)) {
             continue;
         }
@@ -38,7 +36,6 @@ if ($entries === false) {
             continue;
         }
 
-        // Silently skip unreadable directories (filemtime returns false)
         $mtime = @filemtime($path);
         if ($mtime === false) {
             continue;
@@ -78,265 +75,125 @@ function findLogo(string $projectPath): ?string
 
     return null;
 }
+
+// --- System Info ---
+$phpVersion     = phpversion();
+$serverSoftware = $_SERVER['SERVER_SOFTWARE'] ?? 'N/A';
+$uploadMax      = ini_get('upload_max_filesize');
+$opcacheEnabled = function_exists('opcache_get_status') && opcache_get_status() !== false;
+
+$services = [
+    'Nginx'      => 8888,
+    'MariaDB'    => 3307,
+    'phpMyAdmin' => 8081,
+];
+
+$trackedExtensions = ['pdo', 'pdo_mysql', 'mysqli', 'gd', 'zip', 'xml', 'mbstring', 'bcmath', 'opcache'];
+$loadedExtensions  = get_loaded_extensions();
+$extensionStatus   = [];
+foreach ($trackedExtensions as $ext) {
+    $extensionStatus[$ext] = in_array($ext, $loadedExtensions);
+}
 ?><!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Proyectos - Dashboard</title>
 <style>
-/* === Design Tokens (Clean Light Palette) === */
-:root {
-    --bg:         #f8f9fa;
-    --card-bg:    #ffffff;
-    --border:     #e2e8f0;
-    --accent:     #4f8ef7;
-    --accent-hover:#3b7de6;
-    --text:       #1e293b;
-    --text-muted: #64748b;
-    --logo-area:  #f1f5f9;
-    --shadow:     0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-    --shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.08);
-    --radius:     10px;
-}
-
-/* === Reset === */
-*, *::before, *::after {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-                 Oxygen, Ubuntu, Cantarell, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    padding: 2rem;
-}
-
-/* === Header Bar === */
-.header-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 1rem;
-    margin-bottom: 2rem;
-}
-
-.header-bar h1 {
-    font-size: 1.4rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    color: var(--text);
-}
-
-.header-bar p {
-    color: var(--text-muted);
-    margin-top: 0.15rem;
-    font-size: 0.9rem;
-}
-
-.header-actions {
-    display: flex;
-    gap: 0.6rem;
-}
-
-/* === Tool Buttons === */
-.tool-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.5rem 1rem;
-    background: var(--card-bg);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text);
-    text-decoration: none;
-    font-size: 0.85rem;
-    font-weight: 500;
-    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
-    white-space: nowrap;
-}
-
-.tool-btn:hover {
-    background: #eef2ff;
-    border-color: var(--accent);
-    box-shadow: 0 1px 3px rgba(79, 142, 247, 0.15);
-}
-
-.tool-btn:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-}
-
-.tool-btn-icon {
-    font-size: 1.1rem;
-    line-height: 1;
-}
-
-/* === Card Grid === */
-.grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 1.5rem;
-}
-
-/* === Card === */
-.card {
-    background: var(--card-bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    overflow: hidden;
-    box-shadow: var(--shadow);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-hover);
-}
-
-/* Logo area */
-.card-logo {
-    width: 100%;
-    height: 120px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--logo-area);
-    padding: 1rem;
-}
-
-.card-logo img {
-    max-width: 80%;
-    max-height: 80%;
-    object-fit: contain;
-}
-
-/* Fallback letter when no logo found */
-.logo-fallback {
-    width: 56px;
-    height: 56px;
-    border-radius: 8px;
-    background: var(--accent);
-    color: #ffffff;
-    font-size: 1.4rem;
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-/* Card body */
-.card-body {
-    padding: 1rem 1.25rem 1.25rem;
-}
-
-.card-body h2 {
-    font-size: 1rem;
-    font-weight: 600;
-    margin-bottom: 0.3rem;
-    line-height: 1.3;
-    color: var(--text);
-}
-
-.card-body .date {
-    font-size: 0.78rem;
-    color: var(--text-muted);
-    margin-bottom: 0.75rem;
-}
-
-.card-body .link {
-    display: inline-block;
-    padding: 0.4rem 0.9rem;
-    background: var(--accent);
-    color: #ffffff;
-    text-decoration: none;
-    border-radius: 6px;
-    font-size: 0.82rem;
-    font-weight: 500;
-    transition: background 0.15s ease;
-}
-
-.card-body .link:hover {
-    background: var(--accent-hover);
-}
-
-.card-body .link:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-}
-
-/* === Empty State === */
-.empty {
-    grid-column: 1 / -1;
-    text-align: center;
-    padding: 4rem 2rem;
-    color: var(--text-muted);
-}
-
-.empty p {
-    font-size: 1.1rem;
-    line-height: 1.6;
-}
-
-/* === Error State === */
-.error {
-    grid-column: 1 / -1;
-    text-align: center;
-    padding: 4rem 2rem;
-    color: #dc2626;
-}
-
-/* === Responsive: single column on mobile === */
-@media (max-width: 640px) {
-    body {
-        padding: 1rem;
-    }
-
-    .header-bar {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .grid {
-        grid-template-columns: 1fr;
-        gap: 1rem;
-    }
-}
+/* ponytail: fallback CSS — usable when Tailwind CDN is offline */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0f172a;--card:#1e293b;--border:#334155;--text:#e2e8f0;--muted:#94a3b8;--accent:#3b82f6;--accent2:#60a5fa;--green:#34d399}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:2rem}
+main{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.5rem}
+article{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;transition:transform .2s,box-shadow .2s}
+article:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3)}
+article a{color:var(--accent);text-decoration:none}
+code{background:#334155;padding:.15rem .3rem;border-radius:3px;font-size:.85rem}
+@media(max-width:640px){body{padding:1rem}main{grid-template-columns:1fr;gap:1rem}}
 </style>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = { darkMode: 'class' }
+</script>
 </head>
-<body>
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-sans min-h-screen p-4 sm:p-8 transition-colors duration-300">
 
-<header class="header-bar">
+<header class="flex items-center justify-between flex-wrap gap-4 mb-8">
     <div>
-        <h1>Proyectos</h1>
-        <p>Selecciona un proyecto para comenzar</p>
+        <h1 class="text-2xl font-bold tracking-tight text-slate-800 dark:text-white">Proyectos</h1>
+        <p class="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Selecciona un proyecto para comenzar</p>
     </div>
-    <div class="header-actions">
-        <a class="tool-btn" href="http://localhost:8081" target="_blank" rel="noopener">
-            <span class="tool-btn-icon">🗄️</span> phpMyAdmin
+    <div class="flex items-center gap-2.5">
+        <button id="theme-toggle" class="inline-flex items-center justify-center w-10 h-10 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" aria-label="Toggle theme">
+            <span id="icon-moon" class="hidden dark:inline">🌙</span>
+            <span id="icon-sun" class="inline dark:hidden">☀️</span>
+        </button>
+        <a class="inline-flex items-center gap-1.5 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-slate-700 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-sm transition-all no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" href="http://localhost:8081" target="_blank" rel="noopener">
+            <span class="text-lg leading-none">🗄️</span> phpMyAdmin
         </a>
     </div>
 </header>
 
-<main class="grid">
+<section class="mb-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5">
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div class="bg-gray-50 dark:bg-slate-800 rounded-lg p-3">
+            <p class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">PHP Version</p>
+            <p class="text-lg font-semibold text-slate-800 dark:text-white"><?= htmlspecialchars($phpVersion, ENT_QUOTES, 'UTF-8') ?></p>
+        </div>
+        <div class="bg-gray-50 dark:bg-slate-800 rounded-lg p-3">
+            <p class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Server</p>
+            <p class="text-sm font-semibold text-slate-800 dark:text-white truncate" title="<?= htmlspecialchars($serverSoftware, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($serverSoftware, ENT_QUOTES, 'UTF-8') ?></p>
+        </div>
+        <div class="bg-gray-50 dark:bg-slate-800 rounded-lg p-3">
+            <p class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Upload Max</p>
+            <p class="text-lg font-semibold text-slate-800 dark:text-white"><?= htmlspecialchars($uploadMax, ENT_QUOTES, 'UTF-8') ?></p>
+        </div>
+        <div class="bg-gray-50 dark:bg-slate-800 rounded-lg p-3">
+            <p class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Opcache</p>
+            <p class="text-lg font-semibold <?= $opcacheEnabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400' ?>"><?= $opcacheEnabled ? 'Enabled' : 'Disabled' ?></p>
+        </div>
+    </div>
+    <hr class="my-4 border-slate-100 dark:border-slate-800">
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        <?php foreach ($services as $name => $port): ?>
+        <div class="bg-gray-50 dark:bg-slate-800 rounded-lg p-3">
+            <p class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1"><?= htmlspecialchars($name, ENT_QUOTES, 'UTF-8') ?></p>
+            <?php if ($name === 'MariaDB'): ?>
+                <p class="text-sm font-semibold text-slate-800 dark:text-white">localhost:<?= $port ?></p>
+            <?php else: ?>
+                <a class="text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline" href="http://localhost:<?= $port ?>" target="_blank" rel="noopener">localhost:<?= $port ?></a>
+            <?php endif; ?>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    <hr class="my-4 border-slate-100 dark:border-slate-800">
+    <div>
+        <p class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Extensions</p>
+        <div class="flex flex-wrap gap-1.5">
+            <?php foreach ($extensionStatus as $ext => $loaded): ?>
+            <span class="<?= $loaded ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500' ?> px-2 py-0.5 rounded-full text-xs font-medium"><?= htmlspecialchars($ext, ENT_QUOTES, 'UTF-8') ?></span>
+            <?php endforeach; ?>
+        </div>
+    </div>
+</section>
 
 <?php if ($error): ?>
-    <div class="error">
+<main class="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-6">
+    <div class="col-span-full text-center py-16 px-8 text-red-500 dark:text-red-400">
         <p><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></p>
     </div>
+</main>
 
 <?php elseif (empty($projects)): ?>
-    <div class="empty">
+<main class="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-6">
+    <div class="col-span-full text-center py-16 px-8 text-slate-400 dark:text-slate-500">
         <p>No projects found. Add a project to <code>src/</code> to get started.</p>
     </div>
+</main>
 
 <?php else: ?>
+<main class="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-6">
     <?php foreach ($projects as $proj):
         [$name, $logoFile, $mtime] = $proj;
         $safeName   = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
@@ -344,25 +201,28 @@ body {
         $firstChar  = htmlspecialchars(mb_strtoupper($name[0]), ENT_QUOTES, 'UTF-8');
         $dateStr    = htmlspecialchars(date('Y-m-d', $mtime), ENT_QUOTES, 'UTF-8');
     ?>
-    <article class="card">
-        <div class="card-logo">
-            <?php if ($logoFile): ?>
-            <img src="/<?= $safeName ?>/<?= htmlspecialchars($logoFile, ENT_QUOTES, 'UTF-8') ?>"
-                 alt="<?= $humanName ?> logo"
-                 loading="lazy">
-            <?php else: ?>
-            <div class="logo-fallback"><?= $firstChar ?></div>
-            <?php endif; ?>
-        </div>
-        <div class="card-body">
-            <h2><?= $humanName ?></h2>
-            <p class="date"><?= $dateStr ?></p>
-            <a class="link" href="/<?= $safeName ?>/">Abrir proyecto</a>
-        </div>
-    </article>
+    <article class="group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm dark:shadow-slate-950/50 hover:-translate-y-1 hover:shadow-lg dark:hover:shadow-slate-950/80 transition-all duration-200 overflow-hidden flex flex-col">
+            <div class="flex items-center gap-4 p-5">
+                <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/25 flex items-center justify-center flex-shrink-0">
+                    <span class="text-white text-2xl font-bold leading-none"><?= $firstChar ?></span>
+                </div>
+                <div class="min-w-0 flex-1">
+                    <h2 class="text-lg font-semibold text-slate-800 dark:text-white truncate"><?= $humanName ?></h2>
+                    <p class="text-xs text-slate-400 dark:text-slate-500 mt-0.5">🕐 <?= $dateStr ?></p>
+                </div>
+            </div>
+            <div class="flex-1"></div>
+            <a class="flex items-center justify-center gap-2 px-4 py-3 bg-slate-50 dark:bg-slate-800/60 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-500 hover:text-white dark:hover:bg-blue-600 dark:hover:text-white transition-all no-underline border-t border-slate-100 dark:border-slate-800" href="/<?= $safeName ?>/">
+                Abrir proyecto <span class="transition-transform group-hover:translate-x-1" aria-hidden="true">&rarr;</span>
+            </a>
+        </article>
     <?php endforeach; ?>
+</main>
 <?php endif; ?>
 
-</main>
+<script>
+(function(){var t=localStorage.getItem('theme');if(t==='light'){document.documentElement.classList.remove('dark')}else{document.documentElement.classList.add('dark')}})();
+document.getElementById('theme-toggle').addEventListener('click',function(){var h=document.documentElement;h.classList.toggle('dark');localStorage.setItem('theme',h.classList.contains('dark')?'dark':'light')});
+</script>
 </body>
 </html>
